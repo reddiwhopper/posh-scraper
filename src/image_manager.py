@@ -78,8 +78,23 @@ class ImageManager:
             elif img.mode != 'RGB':
                 img = img.convert('RGB')
 
-            # Resize image while maintaining aspect ratio
-            img.thumbnail((self.max_width, self.max_height), Image.Resampling.LANCZOS)
+            # Make image square by cropping to center
+            # This ensures consistent display in emails
+            width, height = img.size
+            square_size = min(width, height)
+
+            # Calculate crop box for center square
+            left = (width - square_size) // 2
+            top = (height - square_size) // 2
+            right = left + square_size
+            bottom = top + square_size
+
+            # Crop to square
+            img = img.crop((left, top, right, bottom))
+
+            # Resize to target size
+            target_size = min(self.max_width, self.max_height)
+            img = img.resize((target_size, target_size), Image.Resampling.LANCZOS)
 
             # Save compressed image
             image_filename = "image.jpg"

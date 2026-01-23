@@ -87,7 +87,7 @@ class ConfigManager:
             self.config['scraper'] = {}
 
         scraper_defaults = {
-            'headless': True,
+            'headless': False,
             'timeout': 30000,
             'delay_min': 2,
             'delay_max': 5,

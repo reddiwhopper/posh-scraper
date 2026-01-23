@@ -80,7 +80,7 @@
 
         .listings-grid {
             display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+            grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
             gap: 20px;
             margin-top: 20px;
         }
@@ -103,10 +103,11 @@
 
         .listing-image {
             width: 100%;
-            height: 250px;
+            aspect-ratio: 1 / 1;
             object-fit: cover;
             background-color: #f8f9fa;
             display: block;
+            max-height: 300px;
         }
 
         .listing-info {
@@ -180,7 +181,8 @@
 
         .no-image {
             width: 100%;
-            height: 250px;
+            aspect-ratio: 1 / 1;
+            max-height: 300px;
             background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
             display: flex;
             align-items: center;
@@ -226,7 +228,9 @@
             <div class="listings-grid">
                 {% for listing in listings %}
                 <a href="{{ listing.url }}" class="listing-card" target="_blank">
-                    {% if listing.local_image_path %}
+                    {% if listing.local_image_path and listing.image_url %}
+                    <img src="cid:{{ listing.listing_id }}" onerror="this.onerror=null; this.src='{{ listing.image_url }}';" alt="{{ listing.title }}" class="listing-image">
+                    {% elif listing.local_image_path %}
                     <img src="cid:{{ listing.listing_id }}" alt="{{ listing.title }}" class="listing-image">
                     {% elif listing.image_url %}
                     <img src="{{ listing.image_url }}" alt="{{ listing.title }}" class="listing-image">
