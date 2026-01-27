@@ -192,7 +192,7 @@ def main():
 
         # Close database
         db.close()
-
+                                                                                                                                                                        
         # Execution time
         end_time = datetime.now()
         duration = (end_time - start_time).total_seconds()

@@ -95,24 +95,6 @@ class EmailSender:
         html_part = MIMEText(html_content, 'html')
         message.attach(html_part)
 
-        # Attach images as inline attachments
-        for listing in listings:
-            if listing.get('local_image_path'):
-                image_path = Path(listing['local_image_path'])
-
-                if image_path.exists():
-                    try:
-                        with open(image_path, 'rb') as f:
-                            img_data = f.read()
-
-                        image = MIMEImage(img_data)
-                        image.add_header('Content-ID', f'<{listing["listing_id"]}>')
-                        image.add_header('Content-Disposition', 'inline', filename=f'{listing["listing_id"]}.jpg')
-                        message.attach(image)
-
-                    except Exception as e:
-                        logger.error(f"Error attaching image for listing {listing['listing_id']}: {e}")
-
         return message
 
     def send_email(self, message: MIMEMultipart) -> bool:
