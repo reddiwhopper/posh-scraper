@@ -163,10 +163,20 @@ class PoshmarkScraper:
                 return None
 
             # Extract image URL
+            # Poshmark lazy-loads images, so the real URL may be in
+            # data-src or srcset rather than src
             img_element = element.locator('img').first
             if img_element.count() > 0:
-                img_src = img_element.get_attribute('src')
-                if img_src:
+                img_src = (
+                    img_element.get_attribute('src')
+                    or img_element.get_attribute('data-src')
+                )
+                # Fall back to srcset (take the first URL if present)
+                if not img_src or img_src.startswith('data:'):
+                    srcset = img_element.get_attribute('srcset')
+                    if srcset:
+                        img_src = srcset.split(',')[0].strip().split(' ')[0]
+                if img_src and not img_src.startswith('data:'):
                     listing['image_url'] = img_src
 
             # Extract title
