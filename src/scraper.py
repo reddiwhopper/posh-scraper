@@ -74,58 +74,52 @@ class PoshmarkScraper:
         """
         base_url = "https://poshmark.com/search"
 
-        # Build query parameters
-        params = {'query': keyword}
+        # Start with base URL and query
+        url_parts = [base_url + '?query=' + quote_plus(keyword)]
 
         if filters:
-            # Size filters - Poshmark uses size[] parameter
+            # Size filters - Poshmark uses size[] parameter (can have multiple)
             if 'size' in filters and filters['size']:
                 for size in filters['size']:
-                    # Size parameter needs special handling in URL
-                    params[f'size[]'] = size
+                    url_parts.append(f"size[]={quote_plus(str(size))}")
 
             # Price filters
-            if 'price_min' in filters:
-                params['price_from'] = filters['price_min']
+            if 'price_min' in filters and filters['price_min'] is not None:
+                url_parts.append(f"price_from={filters['price_min']}")
 
-            if 'price_max' in filters:
-                params['price_to'] = filters['price_max']
+            if 'price_max' in filters and filters['price_max'] is not None:
+                url_parts.append(f"price_to={filters['price_max']}")
 
-            # Brand filters
+            # Brand filters (can have multiple)
             if 'brand' in filters and filters['brand']:
-                params['brand[]'] = filters['brand']
+                if isinstance(filters['brand'], list):
+                    for brand in filters['brand']:
+                        url_parts.append(f"brand[]={quote_plus(str(brand))}")
+                else:
+                    url_parts.append(f"brand[]={quote_plus(str(filters['brand']))}")
 
             # Category filters
-            if 'category' in filters:
-                params['category'] = filters['category']
+            if 'category' in filters and filters['category']:
+                url_parts.append(f"category={quote_plus(str(filters['category']))}")
 
-            # Condition filters
+            # Condition filters (can have multiple)
             if 'condition' in filters and filters['condition']:
-                params['condition[]'] = filters['condition']
+                if isinstance(filters['condition'], list):
+                    for condition in filters['condition']:
+                        url_parts.append(f"condition[]={quote_plus(str(condition))}")
+                else:
+                    url_parts.append(f"condition[]={quote_plus(str(filters['condition']))}")
 
             # Sort filter
             # Options: "just_in" (newest), "price_low_to_high", "price_high_to_low"
-            if 'sort' in filters:
+            if 'sort' in filters and filters['sort']:
                 sort_map = {
                     'just_in': 'added_desc',
                     'price_low_to_high': 'price_asc',
                     'price_high_to_low': 'price_desc'
                 }
                 sort_value = sort_map.get(filters['sort'], filters['sort'])
-                params['sort_by'] = sort_value
-
-        # Construct URL manually to handle array parameters
-        url_parts = [base_url + '?query=' + quote_plus(keyword)]
-
-        for key, value in params.items():
-            if key == 'query':
-                continue
-
-            if isinstance(value, list):
-                for item in value:
-                    url_parts.append(f"{key}={quote_plus(str(item))}")
-            else:
-                url_parts.append(f"{key}={quote_plus(str(value))}")
+                url_parts.append(f"sort_by={sort_value}")
 
         url = '&'.join(url_parts)
         logger.debug(f"Built search URL: {url}")
@@ -392,6 +386,15 @@ class PoshmarkScraper:
                     logger.debug(f"Extracted listing: {listing.get('title', 'N/A')}")
 
             logger.info(f"Extracted {len(listings)} listings for search: {search_name}")
+
+            # Filter out listings that exceed price_max (Poshmark doesn't always enforce it)
+            price_max = filters.get('price_max')
+            if price_max is not None:
+                before_count = len(listings)
+                listings = [l for l in listings if l.get('price') is None or l['price'] <= price_max]
+                filtered_count = before_count - len(listings)
+                if filtered_count > 0:
+                    logger.info(f"Filtered out {filtered_count} listings over ${price_max}")
 
             # Random delay before next search
             self.random_delay()
