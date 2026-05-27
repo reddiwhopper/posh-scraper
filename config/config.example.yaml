@@ -40,7 +40,7 @@ scraper:
   timeout: 30000            # Page load timeout in milliseconds
   delay_min: 2              # Minimum delay between requests (seconds)
   delay_max: 5              # Maximum delay between requests (seconds)
-  max_listings_per_search: 48  # Maximum number of listings to scrape per search
+  max_listings_per_search: 65  # Maximum number of listings to scrape per search
 
 # Image settings
 image:

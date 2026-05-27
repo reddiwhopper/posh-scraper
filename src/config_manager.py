@@ -91,7 +91,7 @@ class ConfigManager:
             'timeout': 30000,
             'delay_min': 2,
             'delay_max': 5,
-            'max_listings_per_search': 48
+            'max_listings_per_search': 65
         }
 
         for key, default_value in scraper_defaults.items():

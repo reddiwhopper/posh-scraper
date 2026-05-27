@@ -251,23 +251,25 @@ class PoshmarkScraper:
                 price_element = element.locator(selector).first
                 if price_element.count() > 0:
                     price_text = price_element.inner_text().strip()
-                    # Extract numeric value from price string
                     price_match = re.search(r'\$?([\d,]+(?:\.\d{2})?)', price_text)
                     if price_match:
                         price_str = price_match.group(1).replace(',', '')
                         try:
                             listing['price'] = float(price_str)
                             price_found = True
+                            break  # only stop when we actually got a price
                         except ValueError:
                             pass
-                    break
 
-            # Fallback: Parse price from full text content if not found
+            # Fallback: scan all text in the element for a price
             if not price_found:
                 try:
                     full_text = element.inner_text()
-                    # Look for price pattern like "$80" or "$12.99"
-                    price_match = re.search(r'\$(\d+(?:,\d{3})*(?:\.\d{2})?)', full_text)
+                    # Try with dollar sign first, then bare number as last resort
+                    price_match = (
+                        re.search(r'\$\s*(\d+(?:,\d{3})*(?:\.\d{2})?)', full_text)
+                        or re.search(r'(?<!\d)(\d{1,4}\.\d{2})(?!\d)', full_text)
+                    )
                     if price_match:
                         price_str = price_match.group(1).replace(',', '')
                         listing['price'] = float(price_str)
