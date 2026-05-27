@@ -167,19 +167,22 @@ class PoshmarkScraper:
         try:
             listing = {}
 
-            # Extract listing URL
+            # Extract listing URL.
+            # The element may be a card container (has <a> children) or the
+            # <a> tag itself (when the fallback selector matched links directly).
+            href = None
             link_element = element.locator('a[href*="/listing/"]').first
             if link_element.count() > 0:
                 href = link_element.get_attribute('href')
-                if href:
-                    # Extract listing ID from URL
-                    # Format: /listing/Product-Name-123abc or https://poshmark.com/listing/...
-                    match = re.search(r'/listing/([^?#/]+)', href)
-                    if match:
-                        listing['listing_id'] = match.group(1)
-                        listing['url'] = f"https://poshmark.com/listing/{listing['listing_id']}"
-                    else:
-                        return None
+            else:
+                # Element itself is the <a> tag
+                href = element.get_attribute('href')
+
+            if href:
+                match = re.search(r'/listing/([^?#/]+)', href)
+                if match:
+                    listing['listing_id'] = match.group(1)
+                    listing['url'] = f"https://poshmark.com/listing/{listing['listing_id']}"
 
             if 'listing_id' not in listing:
                 return None
@@ -201,13 +204,14 @@ class PoshmarkScraper:
                 if img_src and not img_src.startswith('data:'):
                     listing['image_url'] = img_src
 
-            # Extract title
-            # Try multiple selectors
+            # Extract title — try DOM selectors first, then fallbacks
             title_selectors = [
                 '[data-testid="listing-title"]',
                 '.tile__title',
                 'div[class*="title"]',
-                'a[href*="/listing/"]'
+                'p[class*="title"]',
+                'span[class*="title"]',
+                'h2', 'h3',
             ]
 
             for selector in title_selectors:
@@ -217,6 +221,21 @@ class PoshmarkScraper:
                     if title:
                         listing['title'] = title
                         break
+
+            # Fallback 1: image alt text often contains the listing title
+            if not listing.get('title') and img_element and img_element.count() > 0:
+                alt = img_element.get_attribute('alt') or ''
+                if alt.strip():
+                    listing['title'] = alt.strip()
+
+            # Fallback 2: derive a readable title from the URL slug
+            # e.g. "Zara-Silk-Top-abc123" → "Zara Silk Top"
+            if not listing.get('title'):
+                slug = listing['listing_id']
+                # Strip the trailing hash (last hyphen-separated token is the ID)
+                parts = slug.rsplit('-', 1)
+                readable = parts[0].replace('-', ' ') if len(parts) > 1 else slug.replace('-', ' ')
+                listing['title'] = readable
 
             # Extract price
             price_selectors = [

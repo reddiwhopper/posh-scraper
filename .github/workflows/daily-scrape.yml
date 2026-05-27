@@ -63,7 +63,7 @@ jobs:
           git config user.email "github-actions@github.com"
           git config user.name "GitHub Actions"
           cp data/listings.db listings.db
-          git add listings.db
+          git add -f listings.db
           if git diff --staged --quiet; then
             echo "Database unchanged, nothing to commit"
           else
