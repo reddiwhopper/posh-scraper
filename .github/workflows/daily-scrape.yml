@@ -1,0 +1,53 @@
+name: Daily Poshmark Scrape
+
+on:
+  schedule:
+    # 7:00 AM EST = 12:00 PM UTC
+    - cron: '0 12 * * *'
+  workflow_dispatch: # Allow manual trigger
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          playwright install chromium
+          playwright install-deps chromium
+
+      - name: Write config file
+        run: echo "$CONFIG_YAML" > config/config.yaml
+        env:
+          CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
+
+      - name: Restore database
+        uses: dawidd6/action-download-artifact@v6
+        with:
+          name: posh-database
+          path: data/
+          search_artifacts: true
+          if_no_artifact_found: warn
+
+      - name: Run scraper
+        env:
+          GMAIL_APP_PASSWORD: ${{ secrets.GMAIL_APP_PASSWORD }}
+        run: python main.py
+
+      - name: Save database
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: posh-database
+          path: data/listings.db
+          overwrite: true
+          retention-days: 90
