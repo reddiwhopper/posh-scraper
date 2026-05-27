@@ -6,6 +6,9 @@ on:
     - cron: '0 12 * * *'
   workflow_dispatch: # Allow manual trigger
 
+permissions:
+  contents: write   # needed to push the database branch
+
 jobs:
   scrape:
     runs-on: ubuntu-latest
@@ -13,6 +16,8 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # full history so we can checkout db-storage branch
 
       - name: Set up Python
         uses: actions/setup-python@v5
@@ -31,12 +36,17 @@ jobs:
           CONFIG_YAML: ${{ secrets.CONFIG_YAML }}
 
       - name: Restore database
-        uses: dawidd6/action-download-artifact@v6
-        with:
-          name: posh-database
-          path: data/
-          search_artifacts: true
-          if_no_artifact_found: warn
+        run: |
+          mkdir -p data
+          if git ls-remote --exit-code origin db-storage > /dev/null 2>&1; then
+            git fetch origin db-storage --depth=1
+            git checkout origin/db-storage -- listings.db 2>/dev/null && \
+              mv listings.db data/listings.db && \
+              echo "Database restored: $(du -h data/listings.db | cut -f1), $(sqlite3 data/listings.db 'SELECT COUNT(*) FROM listings;' 2>/dev/null || echo '?') rows" \
+              || echo "listings.db not found on db-storage branch, starting fresh"
+          else
+            echo "No db-storage branch yet, starting fresh"
+          fi
 
       - name: Run scraper
         env:
@@ -45,9 +55,19 @@ jobs:
 
       - name: Save database
         if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: posh-database
-          path: data/listings.db
-          overwrite: true
-          retention-days: 90
+        run: |
+          if [ ! -f data/listings.db ]; then
+            echo "No database file to save, skipping"
+            exit 0
+          fi
+          git config user.email "github-actions@github.com"
+          git config user.name "GitHub Actions"
+          cp data/listings.db listings.db
+          git add listings.db
+          if git diff --staged --quiet; then
+            echo "Database unchanged, nothing to commit"
+          else
+            git commit -m "chore: update database [skip ci]"
+            git push origin HEAD:db-storage --force
+            echo "Database saved ($(du -h listings.db | cut -f1))"
+          fi

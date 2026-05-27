@@ -15,6 +15,28 @@ from playwright.sync_api import sync_playwright, Page, Browser, TimeoutError as 
 
 logger = logging.getLogger(__name__)
 
+# Rotate through real Chrome UAs so each run looks different
+_USER_AGENTS = [
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+]
+
+# JS injected before every page load to mask automation signals
+_STEALTH_SCRIPT = """
+    Object.defineProperty(navigator, 'webdriver', {get: () => undefined});
+    Object.defineProperty(navigator, 'plugins', {get: () => [1, 2, 3, 4, 5]});
+    Object.defineProperty(navigator, 'languages', {get: () => ['en-US', 'en']});
+    window.chrome = {runtime: {}};
+    const origQuery = window.navigator.permissions.query;
+    window.navigator.permissions.query = (params) =>
+        params.name === 'notifications'
+            ? Promise.resolve({state: Notification.permission})
+            : origQuery(params);
+"""
+
 
 class PoshmarkScraper:
     """Scrapes Poshmark listings using Playwright"""
@@ -77,49 +99,49 @@ class PoshmarkScraper:
         # Start with base URL and query
         url_parts = [base_url + '?query=' + quote_plus(keyword)]
 
-        if filters:
-            # Size filters - Poshmark uses size[] parameter (can have multiple)
-            if 'size' in filters and filters['size']:
-                for size in filters['size']:
-                    url_parts.append(f"size[]={quote_plus(str(size))}")
+        filters = filters or {}
 
-            # Price filters
-            if 'price_min' in filters and filters['price_min'] is not None:
-                url_parts.append(f"price_from={filters['price_min']}")
+        # Size filters - Poshmark uses size[] parameter (can have multiple)
+        if filters.get('size'):
+            for size in filters['size']:
+                url_parts.append(f"size[]={quote_plus(str(size))}")
 
-            if 'price_max' in filters and filters['price_max'] is not None:
-                url_parts.append(f"price_to={filters['price_max']}")
+        # Price filters
+        if filters.get('price_min') is not None:
+            url_parts.append(f"price_from={filters['price_min']}")
 
-            # Brand filters (can have multiple)
-            if 'brand' in filters and filters['brand']:
-                if isinstance(filters['brand'], list):
-                    for brand in filters['brand']:
-                        url_parts.append(f"brand[]={quote_plus(str(brand))}")
-                else:
-                    url_parts.append(f"brand[]={quote_plus(str(filters['brand']))}")
+        if filters.get('price_max') is not None:
+            url_parts.append(f"price_to={filters['price_max']}")
 
-            # Category filters
-            if 'category' in filters and filters['category']:
-                url_parts.append(f"category={quote_plus(str(filters['category']))}")
+        # Brand filters (can have multiple)
+        if filters.get('brand'):
+            if isinstance(filters['brand'], list):
+                for brand in filters['brand']:
+                    url_parts.append(f"brand[]={quote_plus(str(brand))}")
+            else:
+                url_parts.append(f"brand[]={quote_plus(str(filters['brand']))}")
 
-            # Condition filters (can have multiple)
-            if 'condition' in filters and filters['condition']:
-                if isinstance(filters['condition'], list):
-                    for condition in filters['condition']:
-                        url_parts.append(f"condition[]={quote_plus(str(condition))}")
-                else:
-                    url_parts.append(f"condition[]={quote_plus(str(filters['condition']))}")
+        # Category filters
+        if filters.get('category'):
+            url_parts.append(f"category={quote_plus(str(filters['category']))}")
 
-            # Sort filter
-            # Options: "just_in" (newest), "price_low_to_high", "price_high_to_low"
-            if 'sort' in filters and filters['sort']:
-                sort_map = {
-                    'just_in': 'added_desc',
-                    'price_low_to_high': 'price_asc',
-                    'price_high_to_low': 'price_desc'
-                }
-                sort_value = sort_map.get(filters['sort'], filters['sort'])
-                url_parts.append(f"sort_by={sort_value}")
+        # Condition filters (can have multiple)
+        if filters.get('condition'):
+            if isinstance(filters['condition'], list):
+                for condition in filters['condition']:
+                    url_parts.append(f"condition[]={quote_plus(str(condition))}")
+            else:
+                url_parts.append(f"condition[]={quote_plus(str(filters['condition']))}")
+
+        # Always sort newest-first so the DB dedup stays accurate
+        sort_map = {
+            'just_in': 'added_desc',
+            'price_low_to_high': 'price_asc',
+            'price_high_to_low': 'price_desc'
+        }
+        sort_key = filters.get('sort', 'just_in')
+        sort_value = sort_map.get(sort_key, sort_key)
+        url_parts.append(f"sort_by={sort_value}")
 
         url = '&'.join(url_parts)
         logger.debug(f"Built search URL: {url}")
@@ -316,16 +338,32 @@ class PoshmarkScraper:
         # Build search URL
         url = self.build_search_url(keyword, filters)
 
-        # Create new page
-        page = self.browser.new_page()
+        # Create new page with a random user agent
+        user_agent = random.choice(_USER_AGENTS)
+        page = self.browser.new_page(user_agent=user_agent)
 
         try:
-            # Set realistic viewport and user agent
+            # Inject stealth patches before any page script runs
+            page.add_init_script(_STEALTH_SCRIPT)
+
+            # Set realistic viewport
             page.set_viewport_size({"width": 1920, "height": 1080})
 
-            # Navigate to search page
+            # Set headers that match a real browser
+            page.set_extra_http_headers({
+                "Accept-Language": "en-US,en;q=0.9",
+                "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,*/*;q=0.8",
+                "Sec-Ch-Ua": '"Chromium";v="124", "Google Chrome";v="124", "Not-A.Brand";v="99"',
+                "Sec-Ch-Ua-Mobile": "?0",
+                "Sec-Ch-Ua-Platform": '"Windows"',
+            })
+
+            # Navigate to search page — domcontentloaded is more reliable than
+            # networkidle on SPAs; we wait for content explicitly after
             logger.info(f"Navigating to: {url}")
-            page.goto(url, timeout=self.timeout, wait_until='networkidle')
+            page.goto(url, timeout=self.timeout, wait_until='domcontentloaded')
+            # Give JS time to render initial listings
+            time.sleep(3)
 
             # Wait for listings to load
             # Try multiple selectors as Poshmark structure may vary
