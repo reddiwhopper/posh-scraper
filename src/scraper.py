@@ -206,6 +206,7 @@ class PoshmarkScraper:
 
             # Extract title — try DOM selectors first, then fallbacks
             title_selectors = [
+                'span.tile-grid-redesign__title',
                 '[data-testid="listing-title"]',
                 '.tile__title',
                 'div[class*="title"]',
@@ -239,6 +240,7 @@ class PoshmarkScraper:
 
             # Extract price
             price_selectors = [
+                'span.tile-grid-redesign__price-current',
                 '[data-testid="listing-price"]',
                 '.tile__price',
                 'div[class*="price"]',
@@ -278,6 +280,7 @@ class PoshmarkScraper:
 
             # Extract size (if visible in tile)
             size_selectors = [
+                'div.tile-grid-redesign__size',
                 '[data-testid="listing-size"]',
                 '.tile__size',
                 'div[class*="size"]'
@@ -389,6 +392,7 @@ class PoshmarkScraper:
             # Wait for listings to load
             # Try multiple selectors as Poshmark structure may vary
             listing_selectors = [
+                'div.tile-grid-redesign__media--wrapper',
                 '[data-testid="listing-card"]',
                 '.tile',
                 '.card',
@@ -422,8 +426,9 @@ class PoshmarkScraper:
             # Find all listing containers
             # Try to find the most specific selector first
             container_selectors = [
+                'div.tile-grid-redesign__media--wrapper',
                 '[data-testid="listing-card"]',
-                '.card',  # Current Poshmark structure (2026)
+                '.card',
                 '.tile',
                 '.search-content .card',
                 'a[href*="/listing/"]'

@@ -1,0 +1,65 @@
+# Poshmark Web Scraper Configuration
+# paste it in github secret
+
+# Email settings
+email:
+  smtp_server: "smtp.gmail.com"
+  smtp_port: 587
+  sender_email: "michelleguanfl+posh@gmail.com"
+  recipient_emails:
+    - "michelleguanfl@gmail.com"
+
+# Search configurations
+# Each search represents a Poshmark query with optional filters
+searches:
+  - name: "Allsaints"
+    keyword: "allsaints heels"
+    filters:
+      size: ["7", "7.5", "8", "38"]
+      price_min: 20
+      price_max: 150
+      sort: "just_in"           # Sort by newest listings (recommended!)
+
+  - name: "bebe silk"
+    keyword: "bebe silk"
+    filters:
+      size: ["S", "M", "XS"]
+      price_min: 5
+      price_max: 80
+      sort: "just_in"           # Options: just_in, price_low_to_high, price_high_to_low
+
+
+  - name: "cache fringe"
+    keyword: "cache fringe"
+    filters:
+      price_min: 5
+      price_max: 80
+      size: ["S", "M", "XS"]
+      sort: "just_in"
+
+  - name: "bebe lace"
+    keyword: "bebe lace"
+    filters:
+      price_min: 5
+      price_max: 80
+      size: ["S", "M", "XS"]
+      sort: "just_in"
+
+# Scraper settings
+scraper:
+  headless: true            # Run browser in headless mode
+  timeout: 30000            # Page load timeout in milliseconds
+  delay_min: 2              # Minimum delay between requests (seconds)
+  delay_max: 5              # Maximum delay between requests (seconds)
+  max_listings_per_search: 65  # Maximum number of listings to scrape per search
+
+# Image settings
+image:
+  max_width: 500            # Maximum image width in pixels (for compression)
+  max_height: 500           # Maximum image height in pixels
+  cleanup_days: 30          # Delete images older than X days
+
+# Logging settings
+logging:
+  level: "INFO"             # DEBUG, INFO, WARNING, ERROR, CRITICAL
+  log_file: "data/logs/scraper.log"
